@@ -1,0 +1,23 @@
+# Models and weights
+local_indicf5/
+*.safetensors
+*.bin
+*.pt
+
+# Audio files
+results/*.wav
+test_audio/
+*.mp3
+
+# Python caches
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+
+# Environments
+.env
+venv/
+env/

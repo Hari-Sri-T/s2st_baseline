@@ -1,0 +1,33 @@
+# Core
+torch>=2.1.0
+# Pinned (not >=) - transformers 5.x restructured internal modules and broke
+# IndicTransToolkit's imports (collator.py expects the old 4.x layout).
+# tokenizers must match transformers' expected range or transformers itself
+# refuses to import. If IndicTransToolkit ships a 5.x-compatible release
+# later, both these pins can be relaxed.
+transformers==4.46.3
+tokenizers==0.20.3
+accelerate>=0.30.0
+soundfile>=0.12.1
+# numba (a Whisper dependency) refuses to import above numpy 2.2.x.
+# transformers' dependency resolution pulls numpy to the latest 2.5+ if
+# left unpinned, which silently breaks Whisper. Keep this pinned down.
+numpy<2.3
+
+# ASR
+openai-whisper
+
+# Translation (IndicTrans2 preprocessing toolkit - install from GitHub, not on PyPI)
+# pip install git+https://github.com/VarunGumma/IndicTransToolkit.git
+
+# Speaker Evaluation
+speechbrain
+
+
+# TTS - pick ONE based on config.TTS_BACKEND, or install both to A/B compare
+# IndicF5 uses transformers directly (already covered above)
+# F5-TTS:
+f5-tts
+
+# Optional but recommended for Colab GPU checks
+nvidia-ml-py3

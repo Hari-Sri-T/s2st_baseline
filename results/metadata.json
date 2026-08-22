@@ -1,0 +1,80 @@
+[
+  {
+    "run_id": "speakerA_hi_neutral__to_te",
+    "source_audio": "test_audio/speakerA_hi_neutral.wav",
+    "source_lang": "hi",
+    "target_lang": "te",
+    "transcript": "नमस्ते मेरा नाम तनिश्क है, मैं SIT पुने में पढ़ाई कर रहा हू.",
+    "detected_language": "hi",
+    "translated_text": "హలో, నా పేరు తనిష్క్, నేను సిట్ పూణేలో చదువుతున్నాను.",
+    "tts_backend": "indicf5",
+    "output_audio": "results/speakerA_hi_neutral__to_te__output.wav",
+    "reference_clip": "results/speakerA_hi_neutral__to_te__ref.wav",
+    "timestamp": "2026-08-22T13:32:10.316879+00:00"
+  },
+  {
+    "run_id": "speakerA_hi_neutral__to_mr",
+    "source_audio": "test_audio/speakerA_hi_neutral.wav",
+    "source_lang": "hi",
+    "target_lang": "mr",
+    "transcript": "नमस्ते मेरा नाम तनिश्क है, मैं SIT पुने में पढ़ाई कर रहा हू.",
+    "detected_language": "hi",
+    "translated_text": "नमस्कार माझे नाव तनिष्क आहे, मी एस. आय. टी. पुण्यात शिकत आहे.",
+    "tts_backend": "indicf5",
+    "output_audio": "results/speakerA_hi_neutral__to_mr__output.wav",
+    "reference_clip": "results/speakerA_hi_neutral__to_mr__ref.wav",
+    "timestamp": "2026-08-22T13:32:55.753069+00:00"
+  },
+  {
+    "run_id": "speakerA_mr_neutral__to_hi",
+    "source_audio": "test_audio/speakerA_mr_neutral.wav",
+    "source_lang": "mr",
+    "target_lang": "hi",
+    "transcript": "नमस्कर, माझो नाव तनिशक है मी SIT पुने मदे अभ्यस करतो",
+    "detected_language": "mr",
+    "translated_text": "नमस्ते, मेरा नाम तनिष्क है मैं एस. आई. टी. पुणे का अभ्यास करता हूँ।",
+    "tts_backend": "indicf5",
+    "output_audio": "results/speakerA_mr_neutral__to_hi__output.wav",
+    "reference_clip": "results/speakerA_mr_neutral__to_hi__ref.wav",
+    "timestamp": "2026-08-22T13:34:32.018126+00:00"
+  },
+  {
+    "run_id": "speakerA_mr_neutral__to_te",
+    "source_audio": "test_audio/speakerA_mr_neutral.wav",
+    "source_lang": "mr",
+    "target_lang": "te",
+    "transcript": "emed任",
+    "detected_language": "mr",
+    "translated_text": "ఎండోమెంట్స్",
+    "tts_backend": "indicf5",
+    "output_audio": "results/speakerA_mr_neutral__to_te__output.wav",
+    "reference_clip": "results/speakerA_mr_neutral__to_te__ref.wav",
+    "timestamp": "2026-08-22T13:37:35.625010+00:00"
+  },
+  {
+    "run_id": "speakerA_te_neutral__to_hi",
+    "source_audio": "test_audio/speakerA_te_neutral.wav",
+    "source_lang": "te",
+    "target_lang": "hi",
+    "transcript": "mersharedaéneru",
+    "detected_language": "te",
+    "translated_text": "मर्शेर्डेनेरू",
+    "tts_backend": "indicf5",
+    "output_audio": "results/speakerA_te_neutral__to_hi__output.wav",
+    "reference_clip": "results/speakerA_te_neutral__to_hi__ref.wav",
+    "timestamp": "2026-08-22T13:39:55.694783+00:00"
+  },
+  {
+    "run_id": "speakerA_te_neutral__to_mr",
+    "source_audio": "test_audio/speakerA_te_neutral.wav",
+    "source_lang": "te",
+    "target_lang": "mr",
+    "transcript": "నిపరిలు తినిషా నిని సంఇటి పినలు చింది వితిన నినిని",
+    "detected_language": "te",
+    "translated_text": "निपीरीलु तीनिशा नीनीने विणलेल्या बाहुल्या",
+    "tts_backend": "indicf5",
+    "output_audio": "results/speakerA_te_neutral__to_mr__output.wav",
+    "reference_clip": "results/speakerA_te_neutral__to_mr__ref.wav",
+    "timestamp": "2026-08-22T13:41:03.366501+00:00"
+  }
+]
