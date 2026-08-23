@@ -4,8 +4,8 @@ This addresses Stage 1 - Baseline B from the roadmap document.
 
 USAGE
 -----
-1. Ensure your Colab has the Seamless Communication library installed:
-   !pip install git+https://github.com/facebookresearch/seamless_communication.git
+1. Ensure your environment has transformers and sentencepiece:
+   pip install transformers sentencepiece
 
 2. Run:  python run_baseline_b.py
 
@@ -16,12 +16,11 @@ import os
 import torch
 import torchaudio
 
-# Note: this requires the seamless_communication package
 try:
-    from seamless_communication.inference import Translator
+    from transformers import AutoProcessor, SeamlessM4Tv2Model
 except ImportError:
-    print("Please install seamless_communication first:")
-    print("pip install git+https://github.com/facebookresearch/seamless_communication.git")
+    print("Please install transformers first:")
+    print("pip install transformers sentencepiece")
     exit(1)
 
 import config
@@ -45,14 +44,16 @@ def main():
         print(f"No .wav files found in {config.TEST_AUDIO_DIR}/.")
         return
 
-    print("Loading SeamlessM4T v2 Large model...")
-    # Initialize a Translator object with a multitask model
-    translator = Translator(
-        model_name_or_card="seamlessM4T_v2_large",
-        vocoder_name_or_card="vocoder_v2",
-        device=torch.device(config.DEVICE),
-        dtype=torch.float16 if config.DEVICE == "cuda" else torch.float32,
-    )
+    print("Loading SeamlessM4T v2 Large model via Transformers...")
+    
+    device = torch.device(config.DEVICE)
+    dtype = torch.float16 if config.DEVICE == "cuda" else torch.float32
+
+    processor = AutoProcessor.from_pretrained("facebook/seamless-m4t-v2-large")
+    model = SeamlessM4Tv2Model.from_pretrained(
+        "facebook/seamless-m4t-v2-large",
+        torch_dtype=dtype
+    ).to(device)
 
     os.makedirs(config.RESULTS_DIR, exist_ok=True)
     total_runs = 0
@@ -64,6 +65,14 @@ def main():
             
         src_lang_seamless = config.LANGUAGES[src_lang].get("flores", "")[:3] # mapping to 3-letter
 
+        # Load and resample input audio to 16kHz
+        audio, orig_freq = torchaudio.load(audio_path)
+        if orig_freq != 16000:
+            audio = torchaudio.functional.resample(audio, orig_freq=orig_freq, new_freq=16000)
+        
+        # Processor expects a 1D array
+        audio_array = audio.squeeze().numpy()
+
         for tgt_lang in TARGET_LANGS:
             if tgt_lang == src_lang_seamless:
                 continue
@@ -74,18 +83,20 @@ def main():
             
             try:
                 # S2ST prediction
-                out_texts, out_audios = translator.predict(
-                    input=audio_path,
-                    task_str="S2ST",
-                    tgt_lang=tgt_lang,
-                    src_lang=src_lang_seamless,
-                )
+                audio_inputs = processor(audios=audio_array, return_tensors="pt", sampling_rate=16000).to(device)
                 
-                # Save audio
+                # Generate audio
+                audio_array_from_audio = model.generate(
+                    **audio_inputs,
+                    tgt_lang=tgt_lang,
+                    return_intermediate_token_ids=False
+                )[0].cpu().numpy().squeeze()
+                
+                # Save audio (Seamless generates audio at 16kHz)
                 torchaudio.save(
                     out_path,
-                    out_audios[0].audio_wavs[0][0].cpu(),
-                    sample_rate=out_audios[0].sample_rate,
+                    torch.from_numpy(audio_array_from_audio).unsqueeze(0),
+                    sample_rate=16000,
                 )
                 print(f"Saved {out_path}")
                 total_runs += 1
