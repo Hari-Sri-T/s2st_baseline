@@ -31,3 +31,6 @@ f5-tts
 
 # Optional but recommended for Colab GPU checks
 nvidia-ml-py3
+
+# Prosody Evaluation
+librosa>=0.10.0
