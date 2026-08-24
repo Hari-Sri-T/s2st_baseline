@@ -11,6 +11,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 from asr.whisper_asr import WhisperASR
 
+def resolve_project_path(path):
+    if not path:
+        return path
+    return path if os.path.isabs(path) else config.project_path(path)
+
 def main():
     metadata_path = os.path.join(config.RESULTS_DIR, "metadata.json")
     if not os.path.exists(metadata_path):
@@ -27,12 +32,15 @@ def main():
     
     for run in runs:
         run_id = run.get("run_id")
-        tgt_audio = run.get("output_audio")
+        tgt_audio = resolve_project_path(run.get("output_audio"))
         ground_truth_text = run.get("translated_text")
         target_lang = run.get("target_lang")
         
-        if not os.path.exists(tgt_audio):
+        if not tgt_audio or not os.path.exists(tgt_audio):
             print(f"Missing generated audio for run {run_id}")
+            continue
+        if not ground_truth_text:
+            print(f"Skipping {run_id}: no translated_text recorded for CER/WER reference")
             continue
             
         print(f"\nEvaluating Intelligibility: {run_id}")

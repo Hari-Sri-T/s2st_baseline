@@ -37,3 +37,6 @@ librosa>=0.10.0
 
 # Intelligibility Evaluation
 jiwer>=3.0.0
+
+# Demo App UI
+gradio>=4.0.0

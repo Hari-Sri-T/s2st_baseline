@@ -35,7 +35,6 @@ import os
 # output, just without the compile speedup.
 os.environ.setdefault("TORCHDYNAMO_DISABLE", "1")
 
-from pipeline.baseline_pipeline import BaselinePipeline
 import config
 
 # Which languages to translate each source recording INTO.
@@ -67,6 +66,8 @@ def main():
         return
 
     print(f"Found {len(audio_files)} source file(s). Loading models (this takes a minute)...")
+    from pipeline.baseline_pipeline import BaselinePipeline
+
     pipeline = BaselinePipeline()
 
     total_runs = 0

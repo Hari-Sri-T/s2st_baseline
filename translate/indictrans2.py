@@ -41,9 +41,10 @@ class IndicTrans2Translator:
 
     def _load(self, checkpoint: str):
         if checkpoint not in self._loaded:
+            dtype = torch.float16 if self.device == "cuda" else torch.float32
             tokenizer = AutoTokenizer.from_pretrained(checkpoint, trust_remote_code=True)
             model = AutoModelForSeq2SeqLM.from_pretrained(
-                checkpoint, trust_remote_code=True, torch_dtype=torch.float16
+                checkpoint, trust_remote_code=True, torch_dtype=dtype
             ).to(self.device)
             model.eval()
             self._loaded[checkpoint] = (model, tokenizer)

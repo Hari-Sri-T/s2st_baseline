@@ -6,7 +6,8 @@ local_indicf5/
 
 # Audio files
 results/*.wav
-test_audio/
+test_audio/*
+!test_audio/.gitkeep
 *.mp3
 
 # Python caches

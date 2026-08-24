@@ -3,7 +3,6 @@ Evaluates speaker similarity between source audio and generated target audio.
 Part of the Failure Testing Harness (Stage 2).
 """
 import os
-import glob
 import json
 import torch
 import torchaudio
@@ -20,6 +19,11 @@ except ImportError:
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
+
+def resolve_project_path(path):
+    if not path:
+        return path
+    return path if os.path.isabs(path) else config.project_path(path)
 
 def get_cosine_similarity(emb1, emb2):
     cos = torch.nn.CosineSimilarity(dim=-1, eps=1e-6)
@@ -42,10 +46,12 @@ def main():
     
     for run in runs:
         run_id = run.get("run_id")
-        src_audio = run.get("source_audio")
-        tgt_audio = os.path.join(config.RESULTS_DIR, f"{run_id}__output.wav")
+        src_audio = resolve_project_path(run.get("source_audio"))
+        tgt_audio = resolve_project_path(
+            run.get("output_audio") or os.path.join("results", f"{run_id}__output.wav")
+        )
         
-        if not os.path.exists(src_audio) or not os.path.exists(tgt_audio):
+        if not src_audio or not tgt_audio or not os.path.exists(src_audio) or not os.path.exists(tgt_audio):
             print(f"Missing audio files for run {run_id}")
             continue
             

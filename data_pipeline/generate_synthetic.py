@@ -5,8 +5,6 @@ Indic source speech ➡️ Whisper ➡️ IndicTrans2 ➡️ IndicF5 ➡️ Synt
 """
 import os
 import json
-import torch
-import torchaudio
 
 import sys
 # Make config accessible
@@ -14,8 +12,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 from pipeline.baseline_pipeline import BaselinePipeline
 
-INPUT_METADATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "datasets", "raw", "hi", "metadata_annotated.json")
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "datasets", "synthetic")
+INPUT_METADATA = config.project_path("datasets", "raw", "hi", "metadata_annotated.json")
+OUTPUT_DIR = config.project_path("datasets", "synthetic")
 
 # For testing, we'll just generate Telugu
 TARGET_LANGS = ["te"]
@@ -26,7 +24,7 @@ def main():
         return
         
     print("Loading Baseline Pipeline for Synthetic Generation...")
-    pipeline = BaselinePipeline()
+    pipeline = BaselinePipeline(results_dir=OUTPUT_DIR)
     
     with open(INPUT_METADATA, "r", encoding="utf-8") as f:
         metadata = json.load(f)
@@ -38,7 +36,7 @@ def main():
     
     for i, item in enumerate(metadata):
         audio_rel = item["source_audio"]
-        audio_abs = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", audio_rel)
+        audio_abs = config.project_path(audio_rel)
         src_lang = item["language"]
         run_id_base = item["run_id"]
         
@@ -47,13 +45,16 @@ def main():
                 continue
                 
             run_id = f"{run_id_base}__to_{tgt_lang}"
-            out_audio = os.path.join(OUTPUT_DIR, f"{run_id}__output.wav")
-            out_ref = os.path.join(OUTPUT_DIR, f"{run_id}__ref.wav")
             
             print(f"[{i+1}/{len(metadata)}] Synthesizing {run_id_base} -> {tgt_lang}")
             
             try:
-                result = pipeline.run(audio_abs, tgt_lang, run_id, OUTPUT_DIR)
+                result = pipeline.run(
+                    source_audio_path=audio_abs,
+                    source_lang=src_lang,
+                    target_lang=tgt_lang,
+                    run_id=run_id,
+                )
                 
                 # Create the parallel paired record
                 synthetic_metadata.append({
@@ -62,10 +63,11 @@ def main():
                     "source_lang": src_lang,
                     "target_lang": tgt_lang,
                     "source_audio": audio_rel,
-                    "target_audio": f"datasets/synthetic/{run_id}__output.wav",
+                    "target_audio": result["output_audio"],
                     "source_emotion": item["emotion"],
                     "source_transcript": item["transcript"],
-                    "target_transcript": result["translated_text"]
+                    "target_transcript": result["translated_text"],
+                    "latency": result.get("latency", {}),
                 })
             except Exception as e:
                 print(f"[ERROR] Failed to synthesize {run_id}: {e}")

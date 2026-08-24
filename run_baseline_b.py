@@ -13,6 +13,7 @@ Outputs land in results/ with a "_seamless" suffix.
 """
 import glob
 import os
+import time
 import torch
 import torchaudio
 
@@ -24,8 +25,9 @@ except ImportError:
     exit(1)
 
 import config
+from utils.logging_io import append_result
 
-TARGET_LANGS = ["hin", "tel", "mar"] # Seamless uses 3-letter codes
+TARGET_LANGS = {"hi": "hin", "te": "tel", "mr": "mar"} # Seamless uses 3-letter codes
 
 def parse_filename(path: str):
     """speakerA_hi_neutral.wav -> ("speakerA", "hi", "neutral")"""
@@ -63,34 +65,48 @@ def main():
         if src_lang not in config.LANGUAGES:
             continue
             
-        src_lang_seamless = config.LANGUAGES[src_lang].get("flores", "")[:3] # mapping to 3-letter
-
         # Load and resample input audio to 16kHz
         audio, orig_freq = torchaudio.load(audio_path)
         if orig_freq != 16000:
             audio = torchaudio.functional.resample(audio, orig_freq=orig_freq, new_freq=16000)
+        if audio.size(0) > 1:
+            audio = audio.mean(dim=0, keepdim=True)
         
         # Processor expects a 1D array
         audio_array = audio.squeeze().numpy()
 
-        for tgt_lang in TARGET_LANGS:
-            if tgt_lang == src_lang_seamless:
+        for tgt_lang, tgt_lang_seamless in TARGET_LANGS.items():
+            if tgt_lang == src_lang:
                 continue
 
             run_id = f"{speaker}_{src_lang}_{tag}__to_{tgt_lang}_seamless"
-            out_path = os.path.join(config.RESULTS_DIR, f"{run_id}.wav")
-            print(f"Translating {audio_path} -> {tgt_lang} (Seamless)")
+            out_path = os.path.join(config.RESULTS_DIR, f"{run_id}__output.wav")
+            print(f"Translating {audio_path} -> {tgt_lang_seamless} (Seamless)")
             
             try:
+                started_at = time.perf_counter()
                 # S2ST prediction
                 audio_inputs = processor(audios=audio_array, return_tensors="pt", sampling_rate=16000).to(device)
                 
                 # Generate audio
-                audio_array_from_audio = model.generate(
-                    **audio_inputs,
-                    tgt_lang=tgt_lang,
-                    return_intermediate_token_ids=False
-                )[0].cpu().numpy().squeeze()
+                with torch.no_grad():
+                    # Generate speech
+                    audio_array_from_audio = model.generate(
+                        **audio_inputs,
+                        tgt_lang=tgt_lang_seamless,
+                        return_intermediate_token_ids=False
+                    )[0].cpu().numpy().squeeze()
+                    
+                    # Generate text
+                    text_out = model.generate(
+                        **audio_inputs,
+                        tgt_lang=tgt_lang_seamless,
+                        return_intermediate_token_ids=False,
+                        generate_speech=False
+                    )
+                    translated_text = processor.decode(text_out[0].tolist()[0], skip_special_tokens=True)
+                    
+                total_seconds = time.perf_counter() - started_at
                 
                 # Save audio (Seamless generates audio at 16kHz)
                 torchaudio.save(
@@ -98,6 +114,19 @@ def main():
                     torch.from_numpy(audio_array_from_audio).unsqueeze(0),
                     sample_rate=16000,
                 )
+                append_result(config.RESULTS_DIR, {
+                    "run_id": run_id,
+                    "source_audio": audio_path,
+                    "source_lang": src_lang,
+                    "target_lang": tgt_lang,
+                    "translated_text": translated_text,
+                    "tts_backend": "seamless-m4t-v2-large",
+                    "output_audio": out_path,
+                    "reference_clip": None,
+                    "latency": {
+                        "total_seconds": round(total_seconds, 3),
+                    },
+                })
                 print(f"Saved {out_path}")
                 total_runs += 1
             except Exception as e:

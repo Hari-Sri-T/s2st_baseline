@@ -11,6 +11,11 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 
+def resolve_project_path(path):
+    if not path:
+        return path
+    return path if os.path.isabs(path) else config.project_path(path)
+
 def extract_prosody(audio_path):
     # Load audio
     y, sr = librosa.load(audio_path, sr=None)
@@ -52,10 +57,12 @@ def main():
     
     for run in runs:
         run_id = run.get("run_id")
-        src_audio = run.get("source_audio")
-        tgt_audio = os.path.join(config.RESULTS_DIR, f"{run_id}__output.wav")
+        src_audio = resolve_project_path(run.get("source_audio"))
+        tgt_audio = resolve_project_path(
+            run.get("output_audio") or os.path.join("results", f"{run_id}__output.wav")
+        )
         
-        if not os.path.exists(src_audio) or not os.path.exists(tgt_audio):
+        if not src_audio or not tgt_audio or not os.path.exists(src_audio) or not os.path.exists(tgt_audio):
             print(f"Missing audio files for run {run_id}")
             continue
             

@@ -14,6 +14,15 @@ LANGUAGES = {
     "en": {"name": "English", "flores": "eng_Latn", "whisper": "en"},
 }
 
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def project_path(*parts: str) -> str:
+    return os.path.join(BASE_DIR, *parts)
+
+
 # ---- ASR ----
 WHISPER_MODEL_SIZE = "medium"   # "small" if you're VRAM constrained on Colab free tier
 
@@ -29,19 +38,23 @@ INDICTRANS2_CHECKPOINTS = {
 # "f5" = SWivid/F5-TTS (strong zero-shot voice cloning, general multilingual-ish)
 # "indicf5" = ai4bharat/IndicF5 (Indic-tuned, prefer this for Indic-target quality first)
 TTS_BACKEND = "indicf5"   # switch to "f5" to A/B compare, per roadmap doc Stage 1 TTS candidates
-INDICF5_CHECKPOINT = "local_indicf5"
+INDICF5_CHECKPOINT = project_path("local_indicf5")
 F5TTS_CHECKPOINT = "SWivid/F5-TTS"
 
 # ---- I/O ----
-TEST_AUDIO_DIR = "test_audio"     # put source recordings here, named like: speakerA_hi_neutral.wav
-RESULTS_DIR = "results"           # pipeline writes input/output pairs + metadata.json here
+TEST_AUDIO_DIR = project_path("test_audio")     # put source recordings here, named like: speakerA_hi_neutral.wav
+RESULTS_DIR = project_path("results")           # pipeline writes input/output pairs + metadata.json here
 SAMPLE_RATE = 16000                # ASR expects 16k; TTS output resampled separately if needed
 
 # ---- Device ----
-import torch
-if torch.cuda.is_available():
-    DEVICE = "cuda"
-elif torch.backends.mps.is_available():
-    DEVICE = "mps"
-else:
+try:
+    import torch
+
+    if torch.cuda.is_available():
+        DEVICE = "cuda"
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        DEVICE = "mps"
+    else:
+        DEVICE = "cpu"
+except ImportError:
     DEVICE = "cpu"

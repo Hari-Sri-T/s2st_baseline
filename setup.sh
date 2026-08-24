@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+cd "$(dirname "$0")"
+
 echo "Downloading ai4bharat/IndicF5 model..."
 # Download model without symlinks
 huggingface-cli download ai4bharat/IndicF5 --local-dir local_indicf5 --local-dir-use-symlinks False

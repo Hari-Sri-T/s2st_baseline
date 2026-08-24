@@ -23,11 +23,17 @@ class WhisperASR:
                 "segments": list,        # word/segment-level timing (useful later for prosody work)
             }
         """
+        # Provide a general domain/language prompt to guide Whisper and
+        # disable previous text conditioning to prevent hallucinations on short clips.
+        prompt = f"Here is a sentence spoken in {language_hint}." if language_hint else "Here is a spoken sentence."
+        
         result = self.model.transcribe(
             audio_path,
             language=language_hint,
             task="transcribe",
             verbose=False,
+            condition_on_previous_text=False,
+            initial_prompt=prompt,
         )
         return {
             "text": result["text"].strip(),

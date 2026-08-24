@@ -22,6 +22,9 @@ weights and do GPU inference, neither of which works in a plain CPU sandbox.
 # Cell 3 - install deps
 !pip install -r requirements.txt
 !pip install git+https://github.com/VarunGumma/IndicTransToolkit.git
+
+# Cell 4 - check the environment before downloading/running models
+!python check_environment.py
 ```
 
 First run will download:
@@ -57,6 +60,8 @@ cloning TTS models to get a clean speaker reference.
 ## Run
 
 ```python
+!bash setup.sh              # needed once when TTS_BACKEND = "indicf5"
+!python check_environment.py
 !python run_baseline.py
 ```
 
@@ -68,6 +73,13 @@ language listed in `TARGET_LANGS` (top of `run_baseline.py`, currently
 - `results/<run_id>__ref.wav` — the reference clip extracted for cloning
 - `results/metadata.json` — running log with transcript, translation, and
   file paths for every run (this is what Week 2's failure matrix reads from)
+  plus ASR/MT/TTS latency timings
+
+For the SeamlessM4T comparison baseline:
+
+```python
+!python run_baseline_b.py
+```
 
 ## Switching TTS backend
 
