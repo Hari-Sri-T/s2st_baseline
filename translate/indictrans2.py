@@ -41,6 +41,7 @@ class IndicTrans2Translator:
 
     def _load(self, checkpoint: str):
         if checkpoint not in self._loaded:
+            print(f"[IndicTrans2] Loading checkpoint: {checkpoint}")
             dtype = torch.float16 if self.device == "cuda" else torch.float32
             tokenizer = AutoTokenizer.from_pretrained(checkpoint, trust_remote_code=True)
             model = AutoModelForSeq2SeqLM.from_pretrained(
@@ -48,7 +49,15 @@ class IndicTrans2Translator:
             ).to(self.device)
             model.eval()
             self._loaded[checkpoint] = (model, tokenizer)
+            print(f"[IndicTrans2] Loaded: {checkpoint}")
         return self._loaded[checkpoint]
+
+    def warmup_all(self):
+        """Pre-load all translation checkpoints so the first inference call has no delay."""
+        for direction, checkpoint in self.checkpoints.items():
+            print(f"[IndicTrans2] Pre-warming {direction} ({checkpoint})...")
+            self._load(checkpoint)
+        print("[IndicTrans2] All checkpoints loaded and ready.")
 
     def translate(self, text: str, src_flores: str, tgt_flores: str) -> str:
         """

@@ -1,144 +1,208 @@
+"""
+Gradio Demo App for S2ST — Expressive Indic Speech-to-Speech Translation.
+
+Tab 1: Voice Profile Setup — record a clean reference clip for voice cloning.
+Tab 2: Phone Call Simulator — speak in one language, hear it in another in your voice.
+
+All models are loaded eagerly at startup so inference calls have zero cold-start delay.
+"""
 import os
-import tempfile
-import gradio as gr
-from pipeline.baseline_pipeline import BaselinePipeline
-import config
 import time
 
-# Initialize pipeline lazily to save resources if just checking UI layout
-pipeline = None
+import gradio as gr
 
-def init_pipeline():
-    global pipeline
-    if pipeline is None:
-        print("Initializing BaselinePipeline for Demo...")
-        pipeline = BaselinePipeline()
-    return pipeline
+from pipeline.baseline_pipeline import BaselinePipeline
+import config
+
+
+# ---------------------------------------------------------------------------
+# Model warm-up — runs once at startup, not on the first request
+# ---------------------------------------------------------------------------
+print("=" * 60)
+print("[STARTUP] Loading all models into GPU memory. Please wait...")
+print("=" * 60)
+
+pipeline = BaselinePipeline()
+
+# Pre-warm ALL three IndicTrans2 direction models so no request ever waits
+# for a 4.8 GB model download mid-call.
+pipeline.translator.warmup_all()
+
+print("[STARTUP] All models loaded! Demo is ready.")
+print("=" * 60)
+
+
+# ---------------------------------------------------------------------------
+# Gradio callback functions
+# ---------------------------------------------------------------------------
 
 def save_profile(audio_path, transcript_text):
     if not audio_path:
-        return None, "Please record your audio first."
-    if not transcript_text:
-        return None, "Transcript text is required."
-        
-    # We will just pass the paths directly during the call.
-    return audio_path, f"Profile Saved Successfully! You can now use the Phone Call Simulator."
+        return None, None, "❌ Please record your audio first."
+    if not transcript_text or not transcript_text.strip():
+        return None, None, "❌ Transcript text is required."
+    return audio_path, transcript_text, "✅ Voice profile saved! Go to Tab 2 to make a call."
+
 
 def simulate_call(profile_audio, profile_text, call_audio, source_lang, target_lang):
     if not call_audio:
-        return "Please record a message first.", None, None, None
-        
-    p = init_pipeline()
-    
-    # Generate a unique run ID
-    run_id = f"demo_call_{int(time.time())}"
-    
-    # Convert language names to language codes
-    src_code = None
-    tgt_code = None
-    for code, info in config.LANGUAGES.items():
-        if info["name"] == source_lang:
-            src_code = code
-        if info["name"] == target_lang:
-            tgt_code = code
-            
+        return "❌ Please record a message first.", None, None, None
+
+    if not profile_audio:
+        return (
+            "⚠️ No voice profile set. Go to Tab 1 to record your voice profile first.",
+            None, None, None
+        )
+
+    if source_lang == target_lang:
+        return "❌ Source and target languages must be different.", None, None, None
+
+    # Map display names back to lang codes
+    src_code = next((c for c, info in config.LANGUAGES.items() if info["name"] == source_lang), None)
+    tgt_code = next((c for c, info in config.LANGUAGES.items() if info["name"] == target_lang), None)
+
     if not src_code or not tgt_code:
-        return "Invalid language selection.", None, None, None
-        
+        return "❌ Invalid language selection.", None, None, None
+
+    run_id = f"demo_call_{int(time.time())}"
+
     try:
-        # Run the pipeline
-        result = p.run(
+        result = pipeline.run(
             source_audio_path=call_audio,
             source_lang=src_code,
             target_lang=tgt_code,
             run_id=run_id,
             custom_ref_audio=profile_audio,
-            custom_ref_text=profile_text
+            custom_ref_text=profile_text,
         )
-        
+
         latency = result.get("latency", {})
         latency_str = (
-            f"ASR: {latency.get('asr_seconds', 0)}s | "
-            f"Translation: {latency.get('mt_seconds', 0)}s | "
-            f"TTS: {latency.get('tts_seconds', 0)}s | "
-            f"Total: {latency.get('total_seconds', 0)}s"
+            f"🎙️  ASR:         {latency.get('asr_seconds', 0):.2f}s\n"
+            f"🌐  Translation: {latency.get('mt_seconds', 0):.2f}s\n"
+            f"🔊  TTS:         {latency.get('tts_seconds', 0):.2f}s\n"
+            f"⏱️  Total:       {latency.get('total_seconds', 0):.2f}s"
         )
-        
+
         return (
-            result["transcript"], 
-            result["translated_text"], 
-            result["output_audio"], 
-            latency_str
+            result.get("transcript", ""),
+            result.get("translated_text", ""),
+            result.get("output_audio"),
+            latency_str,
         )
+
     except Exception as e:
-        return f"Error occurred: {str(e)}", None, None, None
+        import traceback
+        return f"❌ Error: {e}\n\n{traceback.format_exc()}", None, None, None
 
-def build_app():
-    # Setup languages list
-    lang_choices = [info["name"] for info in config.LANGUAGES.values()]
-    
-    with gr.Blocks(title="S2ST Real-time Phone Call Demo") as app:
-        gr.Markdown("# 📞 Speech-to-Speech Translation Demo")
-        gr.Markdown("This demo simulates a real-time phone call translating your voice into another language while preserving your voice, emotion, and prosody.")
-        
-        # We need a state variable to hold the saved profile audio path and text
-        profile_audio_state = gr.State(None)
-        profile_text_state = gr.State("Hello, my name is testing user, and I am recording my voice profile for this application.")
-        
-        with gr.Tabs():
-            with gr.Tab("1. Voice Profile Setup"):
-                gr.Markdown("### Create your Voice Profile")
-                gr.Markdown("Read the transcript below clearly so the AI can clone your voice properties (timbre, emotion, pitch).")
-                
-                transcript_box = gr.Textbox(
-                    value="Hello, my name is testing user, and I am recording my voice profile for this application.",
-                    label="Read this transcript aloud:",
-                    lines=2
+
+# ---------------------------------------------------------------------------
+# UI
+# ---------------------------------------------------------------------------
+
+LANG_CHOICES = [info["name"] for info in config.LANGUAGES.values()]
+
+PROFILE_TRANSCRIPT = (
+    "Hello! I am recording my voice profile for this speech translation system. "
+    "My voice will be cloned to speak in another language."
+)
+
+with gr.Blocks(title="S2ST Demo — Indic Speech Translation") as app:
+
+    # ---------- shared state ----------
+    profile_audio_state = gr.State(None)
+    profile_text_state  = gr.State(None)
+
+    # ---------- header ----------
+    gr.Markdown(
+        """
+        # 📞 Real-time Indic Speech-to-Speech Translation
+        > **Cascaded pipeline:** Whisper ASR → IndicTrans2 → IndicF5 zero-shot voice cloning
+
+        This demo simulates a cross-language phone call.
+        Your voice is cloned so the translated speech sounds like *you*.
+        """
+    )
+
+    with gr.Tabs():
+
+        # ══════════════════════════════════════════════════════
+        # TAB 1 — Voice Profile
+        # ══════════════════════════════════════════════════════
+        with gr.Tab("1. 🎤 Voice Profile Setup"):
+            gr.Markdown(
+                "### Step 1: Create your Voice Profile\n"
+                "Read the sentence below **clearly and naturally** into the microphone. "
+                "This recording is used to clone your voice into the target language."
+            )
+
+            transcript_box = gr.Textbox(
+                value=PROFILE_TRANSCRIPT,
+                label="📄 Read this sentence aloud:",
+                lines=3,
+            )
+
+            record_profile = gr.Audio(
+                sources=["microphone"],
+                type="filepath",
+                label="🎙️ Record your voice profile here",
+            )
+
+            save_btn = gr.Button("💾 Save Profile", variant="primary", size="lg")
+            profile_status = gr.Textbox(label="Status", interactive=False, lines=1)
+
+            save_btn.click(
+                fn=save_profile,
+                inputs=[record_profile, transcript_box],
+                outputs=[profile_audio_state, profile_text_state, profile_status],
+            )
+
+        # ══════════════════════════════════════════════════════
+        # TAB 2 — Phone Call Simulator
+        # ══════════════════════════════════════════════════════
+        with gr.Tab("2. 📱 Phone Call Simulator"):
+            gr.Markdown(
+                "### Step 2: Make a Call\n"
+                "Select your language and the **other person's language**, "
+                "then speak into the microphone."
+            )
+
+            with gr.Row():
+                src_lang_dd = gr.Dropdown(
+                    choices=LANG_CHOICES, value="English",
+                    label="🗣️ Your language (source)"
                 )
-                
-                record_profile = gr.Audio(sources=["microphone"], type="filepath", label="Record your Voice Profile")
-                
-                save_btn = gr.Button("Save Profile", variant="primary")
-                profile_status = gr.Textbox(label="Status", interactive=False)
-                
-                save_btn.click(
-                    fn=save_profile,
-                    inputs=[record_profile, transcript_box],
-                    outputs=[profile_audio_state, profile_status]
-                ).then(
-                    fn=lambda x: x,
-                    inputs=transcript_box,
-                    outputs=profile_text_state
+                tgt_lang_dd = gr.Dropdown(
+                    choices=LANG_CHOICES, value="Telugu",
+                    label="👂 Other person's language (target)"
                 )
 
-            with gr.Tab("2. Phone Call Simulator"):
-                gr.Markdown("### Simulate a Call")
-                gr.Markdown("Make sure you have saved your profile in the first tab. Then, record a message in your source language.")
-                
-                with gr.Row():
-                    src_lang_dropdown = gr.Dropdown(choices=lang_choices, value="English", label="Your Language (Source)")
-                    tgt_lang_dropdown = gr.Dropdown(choices=lang_choices, value="Hindi", label="Other Person's Language (Target)")
-                
-                call_recording = gr.Audio(sources=["microphone"], type="filepath", label="Speak into the phone")
-                
-                translate_btn = gr.Button("Translate & Send", variant="primary")
-                
-                with gr.Row():
-                    with gr.Column():
-                        asr_output = gr.Textbox(label="What you said (ASR Transcript)")
-                        translation_output = gr.Textbox(label="Translated Text")
-                    with gr.Column():
-                        audio_output = gr.Audio(label="What the other person hears (Target Audio)")
-                        latency_output = gr.Textbox(label="Latency Breakdown")
-                
-                translate_btn.click(
-                    fn=simulate_call,
-                    inputs=[profile_audio_state, profile_text_state, call_recording, src_lang_dropdown, tgt_lang_dropdown],
-                    outputs=[asr_output, translation_output, audio_output, latency_output]
-                )
+            call_recording = gr.Audio(
+                sources=["microphone"],
+                type="filepath",
+                label="📞 Speak your message",
+            )
 
-    return app
+            translate_btn = gr.Button("🚀 Translate & Send", variant="primary", size="lg")
+
+            gr.Markdown("### Results")
+            with gr.Row():
+                with gr.Column():
+                    asr_output         = gr.Textbox(label="📝 What you said (ASR transcript)", lines=3)
+                    translation_output = gr.Textbox(label="🌐 Translated text", lines=3)
+                with gr.Column():
+                    audio_output   = gr.Audio(label="🔊 What the other person hears (your voice)")
+                    latency_output = gr.Textbox(label="⏱️ Latency Breakdown", lines=5)
+
+            translate_btn.click(
+                fn=simulate_call,
+                inputs=[
+                    profile_audio_state, profile_text_state,
+                    call_recording, src_lang_dd, tgt_lang_dd,
+                ],
+                outputs=[asr_output, translation_output, audio_output, latency_output],
+            )
+
 
 if __name__ == "__main__":
-    app = build_app()
-    app.launch(share=True, debug=True)
+    app.launch(share=True, debug=False)
