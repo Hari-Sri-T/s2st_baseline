@@ -8,7 +8,7 @@ Colab startup:
     from pyngrok import ngrok
     print(ngrok.connect(7860))
 """
-import asyncio, io, json, logging, os, random, string
+import asyncio, io, json, logging, os, random, string, base64, requests
 from typing import Dict
 
 import numpy as np
@@ -44,6 +44,14 @@ LANG_CODES = {
     "Bengali": "ben", "Gujarati": "guj", "Punjabi": "pan",
 }
 
+SARVAM_API_KEY = "sk_bi5h2fbb_GjoSB2rUIOWN6PpEB1yBCXrl"
+
+SARVAM_LANG_CODES = {
+    "English": "en-IN", "Hindi": "hi-IN", "Telugu": "te-IN",
+    "Marathi": "mr-IN", "Tamil": "ta-IN", "Kannada": "kn-IN",
+    "Bengali": "bn-IN", "Gujarati": "gu-IN", "Punjabi": "pa-IN",
+}
+
 log.info(f"✅  SeamlessM4T ready on {DEVICE}")
 
 # ── Room state ───────────────────────────────────────────────────────────────
@@ -62,22 +70,44 @@ def decode_audio(raw: bytes) -> tuple[np.ndarray, int]:
     return samples, 16_000
 
 def run_s2s(audio: np.ndarray, sr: int, src: str, tgt: str) -> bytes:
-    # Match run_baseline_b.py exactly
+    # 1. Translate audio to text using SeamlessM4T
     inputs = _proc(
         audios=audio, sampling_rate=sr,
         return_tensors="pt"
     )
     inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
     with torch.no_grad():
-        out = _model.generate(
+        text_out = _model.generate(
             **inputs, 
             tgt_lang=LANG_CODES[tgt],
-            return_intermediate_token_ids=False
+            return_intermediate_token_ids=False,
+            generate_speech=False
         )
-    wav = out[0].cpu().float().numpy().squeeze()
-    
+    translated_text = _proc.decode(text_out[0].tolist()[0], skip_special_tokens=True)
+    log.info(f"Translated Text: {translated_text}")
+
+    # 2. Synthesize audio using Sarvam TTS
+    url = "https://api.sarvam.ai/text-to-speech"
+    headers = {
+        "api-subscription-key": SARVAM_API_KEY,
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "inputs": [translated_text],
+        "target_language_code": SARVAM_LANG_CODES.get(tgt, "hi-IN"),
+        "speaker": "priya",
+        "model": "bulbul:v3",
+        "speech_sample_rate": 16000
+    }
+    res = requests.post(url, headers=headers, json=payload)
+    if res.status_code == 200:
+        audios = res.json().get("audios", [])
+        if audios:
+            return base64.b64decode(audios[0])
+            
+    log.error(f"Sarvam TTS failed: {res.text}")
     buf = io.BytesIO()
-    sf.write(buf, wav, OUTPUT_SR, format="WAV", subtype="PCM_16")
+    sf.write(buf, np.zeros(1600, dtype=np.float32), 16000, format="WAV", subtype="PCM_16")
     return buf.getvalue()
 
 # ── REST endpoints ───────────────────────────────────────────────────────────
