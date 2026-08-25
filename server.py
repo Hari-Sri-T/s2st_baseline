@@ -26,17 +26,17 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 # ── Load SeamlessM4T v2 ──────────────────────────────────────────────────────
 log.info("Loading SeamlessM4T v2-large…")
-from transformers import AutoProcessor, SeamlessM4Tv2ForSpeechToSpeech
+from transformers import AutoProcessor, SeamlessM4Tv2Model
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 DTYPE  = torch.float16 if DEVICE == "cuda" else torch.float32
 
 _proc  = AutoProcessor.from_pretrained("facebook/seamless-m4t-v2-large")
-_model = SeamlessM4Tv2ForSpeechToSpeech.from_pretrained(
+_model = SeamlessM4Tv2Model.from_pretrained(
     "facebook/seamless-m4t-v2-large", torch_dtype=DTYPE
 ).to(DEVICE).eval()
 
-OUTPUT_SR = _model.config.sampling_rate  # 16 000 Hz
+OUTPUT_SR = 16000  # run_baseline_b.py expects/saves at 16000
 
 LANG_CODES = {
     "English": "eng", "Hindi": "hin", "Telugu": "tel",
@@ -62,14 +62,20 @@ def decode_audio(raw: bytes) -> tuple[np.ndarray, int]:
     return samples, 16_000
 
 def run_s2s(audio: np.ndarray, sr: int, src: str, tgt: str) -> bytes:
+    # Match run_baseline_b.py exactly
     inputs = _proc(
         audios=audio, sampling_rate=sr,
-        src_lang=LANG_CODES[src], return_tensors="pt"
+        return_tensors="pt"
     )
     inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
     with torch.no_grad():
-        out = _model.generate(**inputs, tgt_lang=LANG_CODES[tgt], speaker_id=7)
-    wav = out.waveform[0].cpu().float().numpy().squeeze()
+        out = _model.generate(
+            **inputs, 
+            tgt_lang=LANG_CODES[tgt],
+            return_intermediate_token_ids=False
+        )
+    wav = out[0].cpu().float().numpy().squeeze()
+    
     buf = io.BytesIO()
     sf.write(buf, wav, OUTPUT_SR, format="WAV", subtype="PCM_16")
     return buf.getvalue()
