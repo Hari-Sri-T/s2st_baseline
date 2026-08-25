@@ -72,7 +72,7 @@ def decode_audio(raw: bytes) -> tuple[np.ndarray, int]:
 def run_s2s(audio: np.ndarray, sr: int, src: str, tgt: str) -> bytes:
     # 1. Translate audio to text using SeamlessM4T
     inputs = _proc(
-        audios=audio, sampling_rate=sr,
+        audio=audio, sampling_rate=sr,
         return_tensors="pt"
     )
     inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
